@@ -1,0 +1,336 @@
+# ============================================================================
+# Liquibase Changelog - Tables j_employe et j_planification
+# ============================================================================
+
+databaseChangeLog:
+
+  # =========================================================================
+  # Changeset 1: Création de la table j_employe
+  # =========================================================================
+  - changeSet:
+      id: 001-create-j_employe-table
+      author: ibrahim
+      comment: "Création de la table j_employe pour la gestion des employés"
+      changes:
+        - createTable:
+            tableName: j_employe
+            columns:
+              # ID principal avec ULID
+              - column:
+                  name: id
+                  type: BINARY(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              # Informations personnelles
+              - column:
+                  name: nom
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: prenom
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: email
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+
+              # Configuration de travail
+              - column:
+                  name: heures_travail_par_jour
+                  type: INT
+                  defaultValue: 8
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: actif
+                  type: BOOLEAN
+                  defaultValue: true
+                  constraints:
+                    nullable: false
+
+              # Métadonnées
+              - column:
+                  name: date_creation
+                  type: DATETIME
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: date_modification
+                  type: DATETIME
+                  defaultValueComputed: CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+        # Index pour optimiser les recherches
+        - createIndex:
+            tableName: j_employe
+            indexName: idx_employe_actif
+            columns:
+              - column:
+                  name: actif
+
+        - createIndex:
+            tableName: j_employe
+            indexName: idx_employe_email
+            columns:
+              - column:
+                  name: email
+
+  # =========================================================================
+  # Changeset 2: Insertion d'employés de test
+  # =========================================================================
+  - changeSet:
+      id: 002-insert-employes-test-v2
+      author: ibrahim
+      comment: "Tables créées - employés seront ajoutés via l'application"
+      changes:
+        - sql:
+            sql: |
+              -- Table j_employe créée avec succès
+              -- Les employés de test seront créés automatiquement par l'application
+              SELECT 'Employés de test seront créés par l\'application' as message;
+
+  # =========================================================================
+  # Changeset 3: Création de la table j_planification
+  # =========================================================================
+  - changeSet:
+      id: 003-create-j_planification-table
+      author: ibrahim
+      comment: "Création de la table j_planification pour la gestion des plannings"
+      changes:
+        - createTable:
+            tableName: j_planification
+            columns:
+              # ID principal avec ULID
+              - column:
+                  name: id
+                  type: BINARY(16)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+
+              # Références vers les autres tables
+              - column:
+                  name: order_id
+                  type: BINARY(16)
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: employe_id
+                  type: BINARY(16)
+                  constraints:
+                    nullable: false
+
+              # Planning temporel
+              - column:
+                  name: date_planification
+                  type: DATE
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: heure_debut
+                  type: TIME
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: duree_minutes
+                  type: INT
+                  constraints:
+                    nullable: false
+
+              # État de la planification
+              - column:
+                  name: terminee
+                  type: BOOLEAN
+                  defaultValue: false
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: date_debut_reel
+                  type: DATETIME
+                  constraints:
+                    nullable: true
+
+              - column:
+                  name: date_fin_reel
+                  type: DATETIME
+                  constraints:
+                    nullable: true
+
+              # Métadonnées
+              - column:
+                  name: date_creation
+                  type: DATETIME
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              - column:
+                  name: date_modification
+                  type: DATETIME
+                  defaultValueComputed: CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: false
+
+              # Notes optionnelles
+              - column:
+                  name: commentaire
+                  type: TEXT
+                  constraints:
+                    nullable: true
+
+        # Clés étrangères
+        - addForeignKeyConstraint:
+            baseTableName: j_planification
+            baseColumnNames: order_id
+            referencedTableName: order
+            referencedColumnNames: id
+            constraintName: fk_planification_order
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            baseTableName: j_planification
+            baseColumnNames: employe_id
+            referencedTableName: j_employe
+            referencedColumnNames: id
+            constraintName: fk_planification_employe
+            onDelete: CASCADE
+
+        # Index pour optimiser les recherches
+        - createIndex:
+            tableName: j_planification
+            indexName: idx_planification_order
+            columns:
+              - column:
+                  name: order_id
+
+        - createIndex:
+            tableName: j_planification
+            indexName: idx_planification_employe
+            columns:
+              - column:
+                  name: employe_id
+
+        - createIndex:
+            tableName: j_planification
+            indexName: idx_planification_date
+            columns:
+              - column:
+                  name: date_planification
+
+        - createIndex:
+            tableName: j_planification
+            indexName: idx_planification_terminee
+            columns:
+              - column:
+                  name: terminee
+
+        # Index composé pour éviter les doublons
+        - createIndex:
+            tableName: j_planification
+            indexName: idx_planification_unique
+            unique: true
+            columns:
+              - column:
+                  name: order_id
+              - column:
+                  name: employe_id
+              - column:
+                  name: date_planification
+              - column:
+                  name: heure_debut
+
+  # =========================================================================
+  # Changeset 4: Vues utilitaires pour l'interface
+  # =========================================================================
+  - changeSet:
+      id: 004-create-planning-views
+      author: ibrahim
+      comment: "Création de vues pour faciliter les requêtes de planification"
+      changes:
+        # Vue des planifications avec détails
+        - createView:
+            viewName: v_planifications_details
+            selectQuery: |
+              SELECT 
+                  HEX(p.id) as id,
+                  HEX(p.order_id) as order_id,
+                  HEX(p.employe_id) as employe_id,
+                  p.date_planification,
+                  p.heure_debut,
+                  p.duree_minutes,
+                  p.terminee,
+                  p.date_debut_reel,
+                  p.date_fin_reel,
+                  p.commentaire,
+                  p.date_creation,
+                  p.date_modification,
+              
+                  -- Détails commande
+                  o.num_commande,
+                  o.status as order_status,
+                  o.date as order_date,
+                  o.type as order_type,
+                  o.note_minimale,
+                  o.reference,
+              
+                  -- Détails employé
+                  e.nom as employe_nom,
+                  e.prenom as employe_prenom,
+                  e.email as employe_email,
+                  e.heures_travail_par_jour,
+                  e.actif as employe_actif,
+              
+                  -- Calculs utiles
+                  CONCAT(e.prenom, ' ', e.nom) as employe_nom_complet,
+                  TIME_FORMAT(p.heure_debut, '%H:%i') as heure_debut_format,
+                  ADDTIME(p.heure_debut, SEC_TO_TIME(p.duree_minutes * 60)) as heure_fin_calculee
+              
+              FROM j_planification p
+              LEFT JOIN `order` o ON p.order_id = o.id
+              LEFT JOIN j_employe e ON p.employe_id = e.id
+
+        # Vue des statistiques par employé
+        - createView:
+            viewName: v_employe_statistiques
+            selectQuery: |
+              SELECT 
+                  HEX(e.id) as employe_id,
+                  e.nom,
+                  e.prenom,
+                  e.email,
+                  e.heures_travail_par_jour,
+                  e.actif,
+                  CONCAT(e.prenom, ' ', e.nom) as nom_complet,
+              
+                  -- Statistiques planifications
+                  COUNT(p.id) as nb_planifications_total,
+                  COUNT(CASE WHEN p.terminee = true THEN 1 END) as nb_planifications_terminees,
+                  COUNT(CASE WHEN p.terminee = false THEN 1 END) as nb_planifications_en_cours,
+                  SUM(p.duree_minutes) as minutes_planifiees_total,
+                  AVG(p.duree_minutes) as duree_moyenne_par_planification,
+              
+                  -- Planifications cette semaine
+                  COUNT(CASE WHEN p.date_planification >= DATE_SUB(CURDATE(), INTERVAL DAYOFWEEK(CURDATE())-1 DAY) 
+                             AND p.date_planification < DATE_ADD(DATE_SUB(CURDATE(), INTERVAL DAYOFWEEK(CURDATE())-1 DAY), INTERVAL 7 DAY) 
+                             THEN 1 END) as nb_planifications_semaine_courante
+              
+              FROM j_employe e
+              LEFT JOIN j_planification p ON e.id = p.employe_id
+              GROUP BY e.id, e.nom, e.prenom, e.email, e.heures_travail_par_jour, e.actif
