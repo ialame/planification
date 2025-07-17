@@ -52,17 +52,17 @@
       {{ notification.message }}
     </div>
 
-    <div v-if="showPlanning">
-      <EmployeeScheduleDashboard />
-    </div>
+<!--    <div v-if="showPlanning">-->
+<!--      <EmployeeScheduleDashboard />-->
+<!--    </div>-->
 
     <!-- Bouton pour afficher/masquer -->
-    <button
-      @click="showPlanning = !showPlanning"
-      class="bg-blue-600 text-white px-4 py-2 rounded"
-    >
-      {{ showPlanning ? 'Masquer' : 'Afficher' }} Planning
-    </button>
+<!--    <button-->
+<!--      @click="showPlanning = !showPlanning"-->
+<!--      class="bg-blue-600 text-white px-4 py-2 rounded"-->
+<!--    >-->
+<!--      {{ showPlanning ? 'Masquer' : 'Afficher' }} Planning-->
+<!--    </button>-->
   </div>
 
 

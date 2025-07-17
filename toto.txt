@@ -1,0 +1,106 @@
+Dans mon frontend, il y a un bouton bleu "Afficher Planning",
+ce bouton permet d'afficher les employés, puis en cliquant sur chaque employé
+le frontend affiche les commandes qui lui sont associées. Puis dans chaque commande
+de la liste il y a un bouton qui liste les cartes de la commande considérée.
+Je veux donner les fonctionnalités de ce bouton "Afficher Planning"  au bouton
+"Employés" du menu principal, ou bien fusionner les fonctionnalités de "Afficher Planning"
+avec celles du bouton "Employés".
+
+Excellente idée ! Il est plus logique d'avoir une seule entrée "Employés" dans le menu principal qui regroupe toutes les fonctionnalités. Voici comment procéder :
+🎯 Stratégie recommandée : Fusionner dans le bouton "Employés"Searched project for “menu principal navigation boutons employés planning”5 résultatssrc/main/frontend/src/App.vue2 relevant sectionstextsrc/main/frontend/src/components/EmployesView.vuetextsrc/main/frontend/src/components/EmployeeDetailPage.vue2 relevant sectionstextsrc/main/frontend/src/services/api.ts2 relevant sectionstextsrc/main/frontend/src/components/PlanificationView.vuetextJe vois votre structure ! Vous avez déjà un bouton "Afficher Planning" séparé. Voici comment fusionner intelligemment les fonctionnalités :
+🎯 Solution : Enrichir EmployesView.vue avec toutes les fonctionnalitésEmployesView.vue Complet avec Planning et GestionCode <template>
+  <div class="min-h-screen bg-gray-50 p-6">
+    <div class="max-w-7xl mx-auto">
+
+      <!-- ✅ EN-TÊTE UNIFIÉ avec modes de vue -->
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h1 class="text-3xl font-📝 Instructions pour la fusion :
+1. Remplacez EmployesView.vue
+Remplacez le contenu de votre EmployesView.vue existant par le code de l'artifact.
+2. Supprimez le bouton "Afficher Planning" séparé
+Dans votre App.vue, supprimez ou commentez :
+javascript// ❌ À supprimer
+<div v-if="showPlanning">
+  <EmployeeScheduleDashboard />
+</div>
+
+<button @click="showPlanning = !showPlanning" class="bg-blue-600 text-white px-4 py-2 rounded">
+  {{ showPlanning ? 'Masquer' : 'Afficher' }} Planning
+</button>
+3. Fonctionnalités unifiées
+🎯 Mode Gestion :
+
+✅ Création d'employés
+✅ Liste des employés avec infos de base
+✅ Modification (à implémenter)
+✅ Navigation vers le détail
+
+🎯 Mode Planning :
+
+✅ Liste des employés avec stats de charge
+✅ Visualisation des surcharges
+✅ Statistiques globales
+✅ Navigation vers le détail avec commandes/cartes
+
+🎯 Détail unifié :
+
+✅ EmployeeDetailPage.vue fonctionne pour les deux modes
+✅ Affiche les commandes assignées
+✅ Bouton pour voir les cartes de chaque commande
+
+🎯 Résultat final :
+
+Un seul bouton "Employés" dans le menu principal
+Deux modes de vue : Gestion et Planning
+Navigation fluide entre liste et détail
+Toutes les fonctionnalités du planning intégrées
+
+🧪 Test :
+
+Cliquez sur "Employés" dans le menu
+Switchez entre "Gestion" et "Planning"
+Cliquez sur un employé → Détail avec commandes
+Dans une commande → Bouton pour voir les cartes
+
+Cela unifie toute votre gestion d'employés en un seul endroit logique ! 🎉RéessayerClaude peut faire des erreurs. Assurez-vous de vérifier ses réponses.
+
+
+Rien n'a changé à part le suppression du bouton "afficher planning",
+Logs de compilation:
+ ibrahimalame@MacBook-Pro-de-Ibrahim-2  ~/devLatifa/planification/src/main/frontend   main (main)  npm run dev
+> pokemon-order-management-frontend@1.0.0 dev
+> vite
+  VITE v5.4.19  ready in 101 ms
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: http://192.168.0.102:3000/
+  ➜  press h + enter to show help
+6:40:24 AM [vite] warning: Duplicate member "getQualiteFromPourcentage" in class body
+539|    }
+540|
+541|    private getQualiteFromPourcentage(pourcentage: number): string {
+   |            ^
+542|      if (pourcentage >= 95) return 'EXCELLENTE';
+543|      if (pourcentage >= 85) return 'BONNE';
+  Plugin: vite:esbuild
+  File: /Users/ibrahimalame/devLatifa/planification/src/main/frontend/src/services/api.ts
+6:40:24 AM [vite] warning: Duplicate member "getCartesCommande" in class body
+562|  // ✅ MODIFIEZ aussi la méthode getCartesCommande
+563|
+564|    async getCartesCommande(commandeId: string): Promise {
+   |          ^
+565|      try {
+566|        console.log(`🃏 Récupération cartes pour commande: ${commandeId}`);
+  Plugin: vite:esbuild
+  File: /Users/ibrahimalame/devLatifa/planification/src/main/frontend/src/services/api.ts
+6:40:24 AM [vite] warning: Duplicate member "mapStatus" in class body
+891|    }
+892|
+893|    private mapStatus(statusNumber: number): string {
+   |            ^
+894|      switch (statusNumber) {
+895|        case 1: return 'EN_ATTENTE'
+  Plugin: vite:esbuild
+  File: /Users/ibrahimalame/devLatifa/planification/src/main/frontend/src/services/api.ts
+
+Erreur d'exécution dans la console:
