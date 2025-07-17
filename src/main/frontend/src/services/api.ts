@@ -538,12 +538,12 @@ class ApiService {
     }
   }
 
-  private getQualiteFromPourcentage(pourcentage: number): string {
-    if (pourcentage >= 95) return 'EXCELLENTE';
-    if (pourcentage >= 85) return 'BONNE';
-    if (pourcentage >= 70) return 'CORRECTE';
-    return 'FAIBLE';
-  }
+  // private getQualiteFromPourcentage(pourcentage: number): string {
+  //   if (pourcentage >= 95) return 'EXCELLENTE';
+  //   if (pourcentage >= 85) return 'BONNE';
+  //   if (pourcentage >= 70) return 'CORRECTE';
+  //   return 'FAIBLE';
+  // }
 
 
 // ✅ AJOUTEZ ces méthodes utilitaires
@@ -561,53 +561,53 @@ class ApiService {
 
 // ✅ MODIFIEZ aussi la méthode getCartesCommande
 
-  async getCartesCommande(commandeId: string): Promise<CartesDetail> {
-    try {
-      console.log(`🃏 Récupération cartes pour commande: ${commandeId}`);
-
-      // Utiliser le nouvel endpoint frontend pour les cartes
-      const response = await fetch(`${this.baseURL}/api/frontend/commandes/${commandeId}/cartes`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const cartesData: any = await response.json();
-        console.log(`✅ ${cartesData.nombreCartes} cartes récupérées`);
-
-        return {
-          cartes: cartesData.cartes.map((carte: any) => ({
-            id: carte.id,
-            codeBarre: carte.codeBarre,
-            type: carte.type,
-            nom: carte.nom,
-            labelNom: carte.labelNom,
-            annotation: carte.annotation,
-            avecNom: carte.avecNom,
-            duration: carte.duration
-          })),
-          nombreCartes: cartesData.nombreCartes,
-          nombreAvecNom: cartesData.nombreAvecNom,
-          pourcentageAvecNom: cartesData.pourcentageAvecNom
-        };
-      } else {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-    } catch (error) {
-      console.error('❌ Erreur récupération cartes:', error);
-
-      // Fallback avec données vides
-      return {
-        cartes: [],
-        nombreCartes: 0,
-        nombreAvecNom: 0,
-        pourcentageAvecNom: 0
-      };
-    }
-  }
+  // async getCartesCommande(commandeId: string): Promise<CartesDetail> {
+  //   try {
+  //     console.log(`🃏 Récupération cartes pour commande: ${commandeId}`);
+  //
+  //     // Utiliser le nouvel endpoint frontend pour les cartes
+  //     const response = await fetch(`${this.baseURL}/api/frontend/commandes/${commandeId}/cartes`, {
+  //       method: 'GET',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //     });
+  //
+  //     if (response.ok) {
+  //       const cartesData: any = await response.json();
+  //       console.log(`✅ ${cartesData.nombreCartes} cartes récupérées`);
+  //
+  //       return {
+  //         cartes: cartesData.cartes.map((carte: any) => ({
+  //           id: carte.id,
+  //           codeBarre: carte.codeBarre,
+  //           type: carte.type,
+  //           nom: carte.nom,
+  //           labelNom: carte.labelNom,
+  //           annotation: carte.annotation,
+  //           avecNom: carte.avecNom,
+  //           duration: carte.duration
+  //         })),
+  //         nombreCartes: cartesData.nombreCartes,
+  //         nombreAvecNom: cartesData.nombreAvecNom,
+  //         pourcentageAvecNom: cartesData.pourcentageAvecNom
+  //       };
+  //     } else {
+  //       throw new Error(`HTTP ${response.status}`);
+  //     }
+  //
+  //   } catch (error) {
+  //     console.error('❌ Erreur récupération cartes:', error);
+  //
+  //     // Fallback avec données vides
+  //     return {
+  //       cartes: [],
+  //       nombreCartes: 0,
+  //       nombreAvecNom: 0,
+  //       pourcentageAvecNom: 0
+  //     };
+  //   }
+  // }
 
   private getCommandesExemple(): Commande[] {
     return [
@@ -890,16 +890,16 @@ class ApiService {
     }))
   }
 
-  private mapStatus(statusNumber: number): string {
-    switch (statusNumber) {
-      case 1: return 'EN_ATTENTE'
-      case 2: return 'PLANIFIEE'
-      case 3: return 'EN_COURS'
-      case 4: return 'TERMINEE'
-      case 5: return 'ANNULEE'
-      default: return 'EN_ATTENTE'
-    }
-  }
+  // private mapStatus(statusNumber: number): string {
+  //   switch (statusNumber) {
+  //     case 1: return 'EN_ATTENTE'
+  //     case 2: return 'PLANIFIEE'
+  //     case 3: return 'EN_COURS'
+  //     case 4: return 'TERMINEE'
+  //     case 5: return 'ANNULEE'
+  //     default: return 'EN_ATTENTE'
+  //   }
+  // }
 }
 
 
