@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.*;
+import org.springframework.transaction.annotation.Transactional;
 
 @RestController
 @RequestMapping("/api/employes")
@@ -511,84 +512,253 @@ Maintenant ça devrait marcher sans erreur SQL !
         }
     }
 
+    // ✅ CORRECTION DANS EmployeController.java
+
     /**
-     * 👥 ENDPOINT: Création d'employé
+     * ➕ CRÉATION D'EMPLOYÉ CORRIGÉE - SAUVEGARDE RÉELLE
      */
     @PostMapping("/frontend/creer")
-    public ResponseEntity<Map<String, Object>> creerEmployeFrontend(
-            @RequestBody Map<String, Object> employeData
-    ) {
+    @Transactional(rollbackFor = {})  // ✅ Transaction sans rollback automatique
+    public ResponseEntity<Map<String, Object>> creerEmployeFrontend(@RequestBody Map<String, Object> employeData) {
         try {
-            System.out.println("👤 Création employé: " + employeData);
+            System.out.println("➕ Frontend: Création nouvel employé...");
+            System.out.println("📋 Données reçues: " + employeData);
 
-            // Validation
+            // 1. Validation des données obligatoires
             if (!employeData.containsKey("nom") || !employeData.containsKey("prenom")) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "success", false,
-                        "message", "Nom et prénom obligatoires"
+                        "message", "❌ Nom et prénom sont obligatoires"
                 ));
             }
 
-            // Générer un ID
-            String employeId = java.util.UUID.randomUUID().toString().replace("-", "").toUpperCase();
+            String nom = ((String) employeData.get("nom")).trim();
+            String prenom = ((String) employeData.get("prenom")).trim();
 
-            // Essayer d'insérer dans la vraie table
-            try {
-                String sqlInsert = """
-                    INSERT INTO j_employe (id, nom, prenom, email, heures_travail_par_jour, actif, date_creation)
-                    VALUES (UNHEX(?), ?, ?, ?, ?, ?, NOW())
-                """;
-
-                Query insertQuery = entityManager.createNativeQuery(sqlInsert);
-                insertQuery.setParameter(1, employeId);
-                insertQuery.setParameter(2, (String) employeData.get("nom"));
-                insertQuery.setParameter(3, (String) employeData.get("prenom"));
-                insertQuery.setParameter(4, (String) employeData.getOrDefault("email", ""));
-                insertQuery.setParameter(5, employeData.getOrDefault("heuresTravailParJour", 8));
-                insertQuery.setParameter(6, true);
-
-                int rowsAffected = insertQuery.executeUpdate();
-
-                if (rowsAffected > 0) {
-                    Map<String, Object> response = new HashMap<>();
-                    response.put("success", true);
-                    response.put("message", "Employé créé avec succès");
-                    response.put("employe", Map.of(
-                            "id", employeId,
-                            "nom", employeData.get("nom"),
-                            "prenom", employeData.get("prenom"),
-                            "nomComplet", employeData.get("prenom") + " " + employeData.get("nom")
-                    ));
-
-                    return ResponseEntity.ok(response);
-                }
-
-            } catch (Exception sqlException) {
-                System.err.println("❌ Erreur SQL: " + sqlException.getMessage());
+            if (nom.isEmpty() || prenom.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "message", "❌ Nom et prénom ne peuvent pas être vides"
+                ));
             }
 
-            // Fallback: succès simulé
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Employé créé (mode test)");
-            response.put("employe", Map.of(
-                    "id", employeId,
-                    "nom", employeData.get("nom"),
-                    "prenom", employeData.get("prenom"),
-                    "nomComplet", employeData.get("prenom") + " " + employeData.get("nom")
-            ));
+            // 2. Préparer les données avec defaults
+            String email = (String) employeData.get("email");
+            if (email == null || email.trim().isEmpty()) {
+                email = prenom.toLowerCase() + "." + nom.toLowerCase() + "@example.com";
+            }
 
-            return ResponseEntity.ok(response);
+            Integer heuresTravail = 8;
+            if (employeData.containsKey("heuresTravailParJour")) {
+                Object heuresObj = employeData.get("heuresTravailParJour");
+                if (heuresObj instanceof Number) {
+                    heuresTravail = ((Number) heuresObj).intValue();
+                }
+            }
+
+            // 3. Vérifier que la table existe
+            String sqlCheckTable = "SHOW TABLES LIKE 'j_employe'";
+            Query queryCheck = entityManager.createNativeQuery(sqlCheckTable);
+            @SuppressWarnings("unchecked")
+            List<Object> tables = queryCheck.getResultList();
+
+            if (tables.isEmpty()) {
+                System.out.println("⚠️ Table j_employe n'existe pas");
+                return ResponseEntity.ok(Map.of(
+                        "success", false,
+                        "message", "❌ Table employés non trouvée en base de données"
+                ));
+            }
+
+            // 4. INSERTION RÉELLE dans la base de données
+            String employeId = java.util.UUID.randomUUID().toString().replace("-", "");
+
+            String sqlInsert = """
+            INSERT INTO j_employe 
+            (id, nom, prenom, email, heures_travail_par_jour, actif, date_creation, date_modification)
+            VALUES (UNHEX(?), ?, ?, ?, ?, 1, NOW(), NOW())
+        """;
+
+            Query insertQuery = entityManager.createNativeQuery(sqlInsert);
+            insertQuery.setParameter(1, employeId);
+            insertQuery.setParameter(2, nom);
+            insertQuery.setParameter(3, prenom);
+            insertQuery.setParameter(4, email);
+            insertQuery.setParameter(5, heuresTravail);
+
+            int rowsAffected = insertQuery.executeUpdate();
+
+            if (rowsAffected > 0) {
+                // 5. Forcer le commit
+                entityManager.flush();
+
+                // 6. Vérifier l'insertion en relisant
+                String sqlVerif = """
+                SELECT HEX(id), prenom, nom, email, heures_travail_par_jour
+                FROM j_employe 
+                WHERE HEX(id) = ?
+            """;
+
+                Query queryVerif = entityManager.createNativeQuery(sqlVerif);
+                queryVerif.setParameter(1, employeId);
+
+                @SuppressWarnings("unchecked")
+                List<Object[]> verifResult = queryVerif.getResultList();
+
+                if (!verifResult.isEmpty()) {
+                    Object[] emp = verifResult.get(0);
+
+                    Map<String, Object> employeCree = new HashMap<>();
+                    employeCree.put("id", employeId);
+                    employeCree.put("nom", nom);
+                    employeCree.put("prenom", prenom);
+                    employeCree.put("email", email);
+                    employeCree.put("heuresTravailParJour", heuresTravail);
+                    employeCree.put("actif", true);
+                    employeCree.put("nomComplet", prenom + " " + nom);
+
+                    System.out.println("✅ EMPLOYÉ SAUVÉ EN BASE: " + prenom + " " + nom + " (ID: " + employeId + ")");
+
+                    return ResponseEntity.ok(Map.of(
+                            "success", true,
+                            "message", "✅ Employé créé avec succès en base de données !",
+                            "employe", employeCree
+                    ));
+                } else {
+                    System.err.println("❌ Vérification échouée: employé non trouvé après insertion");
+                    return ResponseEntity.status(500).body(Map.of(
+                            "success", false,
+                            "message", "❌ Erreur de vérification après création"
+                    ));
+                }
+
+            } else {
+                System.err.println("❌ Aucune ligne affectée lors de l'insertion");
+                return ResponseEntity.status(500).body(Map.of(
+                        "success", false,
+                        "message", "❌ Échec de l'insertion en base de données"
+                ));
+            }
 
         } catch (Exception e) {
             System.err.println("❌ Erreur création employé: " + e.getMessage());
+            e.printStackTrace();
+
             return ResponseEntity.status(500).body(Map.of(
                     "success", false,
-                    "message", "Erreur: " + e.getMessage()
+                    "message", "❌ Erreur interne: " + e.getMessage()
             ));
         }
     }
 
+    /**
+     * 🧪 TEST: Création d'employé avec debug complet
+     */
+    @PostMapping("/frontend/creer-debug")
+    @Transactional(rollbackFor = {})
+    public ResponseEntity<Map<String, Object>> creerEmployeDebug(@RequestBody Map<String, Object> employeData) {
+        Map<String, Object> debug = new HashMap<>();
+
+        try {
+            System.out.println("🧪 === DEBUG CRÉATION EMPLOYÉ ===");
+            debug.put("step", "1-validation");
+            debug.put("donnees_recues", employeData);
+
+            // 1. Validation
+            if (!employeData.containsKey("nom") || !employeData.containsKey("prenom")) {
+                debug.put("erreur_validation", "Nom et prénom manquants");
+                return ResponseEntity.badRequest().body(debug);
+            }
+
+            debug.put("step", "2-preparation");
+            String nom = ((String) employeData.get("nom")).trim();
+            String prenom = ((String) employeData.get("prenom")).trim();
+            String email = (String) employeData.getOrDefault("email", prenom.toLowerCase() + "." + nom.toLowerCase() + "@test.com");
+            Integer heures = 8;
+
+            debug.put("donnees_preparees", Map.of(
+                    "nom", nom,
+                    "prenom", prenom,
+                    "email", email,
+                    "heures", heures
+            ));
+
+            // 2. Vérifier table
+            debug.put("step", "3-verification-table");
+            String sqlCheck = "SHOW TABLES LIKE 'j_employe'";
+            Query queryCheck = entityManager.createNativeQuery(sqlCheck);
+            @SuppressWarnings("unchecked")
+            List<Object> tables = queryCheck.getResultList();
+
+            debug.put("table_existe", !tables.isEmpty());
+
+            if (tables.isEmpty()) {
+                debug.put("erreur", "Table j_employe n'existe pas");
+                return ResponseEntity.ok(debug);
+            }
+
+            // 3. Compter employés avant
+            debug.put("step", "4-comptage-avant");
+            String sqlCountBefore = "SELECT COUNT(*) FROM j_employe";
+            Number countBefore = (Number) entityManager.createNativeQuery(sqlCountBefore).getSingleResult();
+            debug.put("employes_avant", countBefore.intValue());
+
+            // 4. Insertion
+            debug.put("step", "5-insertion");
+            String employeId = java.util.UUID.randomUUID().toString().replace("-", "");
+
+            String sqlInsert = """
+            INSERT INTO j_employe 
+            (id, nom, prenom, email, heures_travail_par_jour, actif, date_creation, date_modification)
+            VALUES (UNHEX(?), ?, ?, ?, ?, 1, NOW(), NOW())
+        """;
+
+            Query insertQuery = entityManager.createNativeQuery(sqlInsert);
+            insertQuery.setParameter(1, employeId);
+            insertQuery.setParameter(2, nom);
+            insertQuery.setParameter(3, prenom);
+            insertQuery.setParameter(4, email);
+            insertQuery.setParameter(5, heures);
+
+            int rowsAffected = insertQuery.executeUpdate();
+            debug.put("rows_affected", rowsAffected);
+
+            // 5. Forcer commit
+            entityManager.flush();
+            debug.put("commit_force", true);
+
+            // 6. Compter après
+            debug.put("step", "6-verification-apres");
+            Number countAfter = (Number) entityManager.createNativeQuery(sqlCountBefore).getSingleResult();
+            debug.put("employes_apres", countAfter.intValue());
+            debug.put("employes_ajoutes", countAfter.intValue() - countBefore.intValue());
+
+            // 7. Résultat
+            debug.put("success", rowsAffected > 0);
+            debug.put("employe_id", employeId);
+            debug.put("message", rowsAffected > 0 ?
+                    "✅ Employé créé avec succès" : "❌ Échec insertion");
+
+            return ResponseEntity.ok(debug);
+
+        } catch (Exception e) {
+            debug.put("erreur_exception", e.getMessage());
+            debug.put("success", false);
+            e.printStackTrace();
+            return ResponseEntity.status(500).body(debug);
+        }
+    }
+
+// ============= IMPORTS NÉCESSAIRES =============
+
+/*
+Assurez-vous d'avoir ces imports en haut de EmployeController.java :
+
+import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
+import java.util.*;
+*/
     /**
      * 🔧 DEBUG: Structure des tables
      */
