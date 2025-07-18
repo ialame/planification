@@ -517,8 +517,14 @@ const loadEmployeeData = async () => {
 }
 
 /**
- * 🃏 CHARGEMENT DES CARTES DÉTAILLÉES POUR UNE COMMANDE
+ * 🃏 CHARGEMENT DES CARTES DÉTAILLÉES POUR UNE COMMANDE - VERSION CORRIGÉE
+ * Utilise le bon endpoint frontend pour récupérer les vraies cartes
  */
+/**
+ * 🔧 CORRECTION DANS EmployeeDetailPage.vue
+ * Remplacez la fonction chargerCartesCommande par cette version corrigée
+ */
+
 const chargerCartesCommande = async (task: Task) => {
   if (!task.id) {
     console.warn('⚠️ Pas d\'ID de commande pour charger les cartes')
@@ -530,33 +536,66 @@ const chargerCartesCommande = async (task: Task) => {
   try {
     console.log('🃏 Chargement cartes pour commande:', task.id)
 
-    const response = await fetch(`/api/test/commandes/${task.id}/cartes-details`)
-
+    // ✅ CORRECTION: Utiliser le bon endpoint qui fonctionne
+    const response = await fetch(`/api/commandes/frontend/commandes/${task.id}/cartes`)
     if (!response.ok) {
       throw new Error(`Erreur API: ${response.status}`)
     }
 
     const cartesData = await response.json()
-    console.log('✅ Cartes reçues:', cartesData)
+    console.log('✅ Données cartes reçues:', cartesData)
 
-    if (cartesData.cartes_details_uniques && Array.isArray(cartesData.cartes_details_uniques)) {
-      task.cards = cartesData.cartes_details_uniques.map((carte: any) => ({
-        id: carte.cert_id,
-        cert_id: carte.cert_id,
-        card_id: carte.card_id,
-        nom: carte.nom,
-        name: carte.nom,
-        label_name: carte.label_name,
-        code_barre: carte.code_barre,
-        cert_langue: carte.cert_langue,
-        langue: carte.cert_langue,
-        edition: carte.edition,
+    // ✅ TRAITEMENT DES VRAIES CARTES depuis le backend
+    if (cartesData && cartesData.cartes && Array.isArray(cartesData.cartes)) {
+      task.cards = cartesData.cartes.map((carte: any) => ({
+        id: carte.carteId,
+        cert_id: carte.carteId,
+        card_id: carte.cardId || carte.carteId,
+        nom: carte.nom || carte.labelNom || 'Carte inconnue',
+        name: carte.nom || carte.labelNom || 'Carte inconnue',
+        label_name: carte.labelNom || carte.nom || 'Carte à certifier',
+        code_barre: carte.codeBarre || 'N/A',
+        type: carte.type || 'Pokemon',
+        annotation: carte.annotation || '',
+        cert_langue: 'FR', // Peut être ajouté dans le backend si nécessaire
+        langue: 'FR',
+        edition: carte.edition || '', // Peut être ajouté dans le backend
         duration: Math.max(3, Math.floor((task.duration || 30) / (task.cardCount || 1))),
         amount: (task.amount || 0) / (task.cardCount || 1),
-        statut_correspondance: carte.statut_correspondance
+        statut_correspondance: carte.avecNom ? 'AVEC_NOM' : 'SANS_NOM',
+        avecNom: carte.avecNom || false
       }))
 
-      console.log(`✅ ${task.cards.length} cartes chargées pour la commande ${task.numeroCommande}`)
+      console.log(`✅ ${task.cards.length} vraies cartes chargées pour la commande ${task.numeroCommande}`)
+
+      // ✅ STATISTIQUES des cartes avec nom
+      const cartesAvecNom = task.cards.filter(c => c.avecNom)
+      const pourcentageAvecNom = task.cards.length > 0 ?
+        Math.round((cartesAvecNom.length * 100) / task.cards.length) : 0
+
+      console.log(`📊 Qualité: ${cartesAvecNom.length}/${task.cards.length} cartes avec nom (${pourcentageAvecNom}%)`)
+
+    } else if (cartesData && Array.isArray(cartesData)) {
+      // ✅ Format direct (si le backend renvoie directement un tableau)
+      task.cards = cartesData.map((carte: any) => ({
+        id: carte.carteId || carte.id,
+        cert_id: carte.carteId || carte.id,
+        card_id: carte.carteId || carte.id,
+        nom: carte.nom || carte.name || 'Carte inconnue',
+        name: carte.nom || carte.name || 'Carte inconnue',
+        label_name: carte.labelNom || carte.label_name || 'Carte à certifier',
+        code_barre: carte.codeBarre || carte.code_barre || 'N/A',
+        type: carte.type || 'Pokemon',
+        annotation: carte.annotation || '',
+        cert_langue: 'FR',
+        langue: 'FR',
+        duration: Math.max(3, Math.floor((task.duration || 30) / (task.cardCount || 1))),
+        amount: (task.amount || 0) / (task.cardCount || 1),
+        statut_correspondance: carte.avecNom ? 'AVEC_NOM' : 'SANS_NOM',
+        avecNom: carte.avecNom || false
+      }))
+
+      console.log(`✅ ${task.cards.length} cartes chargées (format direct)`)
     } else {
       console.warn('⚠️ Format de données inattendus:', cartesData)
       task.cards = []
@@ -565,7 +604,7 @@ const chargerCartesCommande = async (task: Task) => {
   } catch (error) {
     console.error('❌ Erreur chargement cartes:', error)
 
-    // Créer des cartes de fallback
+    // ✅ FALLBACK: Créer des cartes génériques si l'API échoue
     task.cards = Array.from({ length: task.cardCount || 1 }, (_, index) => ({
       id: `fallback_${task.id}_${index}`,
       cert_id: `fallback_${index}`,
@@ -574,11 +613,14 @@ const chargerCartesCommande = async (task: Task) => {
       name: `Carte ${index + 1}`,
       label_name: `Carte à certifier ${index + 1}`,
       code_barre: `CODE_${index + 1}`,
+      type: 'Pokemon',
       cert_langue: 'FR',
       langue: 'FR',
+      annotation: '',
       duration: Math.floor((task.duration || 30) / (task.cardCount || 1)),
       amount: (task.amount || 0) / (task.cardCount || 1),
-      statut_correspondance: 'FALLBACK'
+      statut_correspondance: 'FALLBACK',
+      avecNom: false
     }))
 
     console.log(`🔄 ${task.cards.length} cartes de fallback créées`)
@@ -588,43 +630,167 @@ const chargerCartesCommande = async (task: Task) => {
 }
 
 /**
- * 🎯 CHARGEMENT EN MASSE DES CARTES
+ * 🔧 CORRECTION ALTERNATIVE: Si vous voulez déboguer l'appel API
+ * Ajoutez cette fonction de test dans EmployeeDetailPage.vue
+ */
+const debugCartesAPI = async (task: Task) => {
+  console.log('🔍 DEBUG: Test de l\'API cartes pour commande:', task.id)
+
+  try {
+    // Test 1: Ancien endpoint (qui échoue)
+    console.log('📡 Test ancien endpoint...')
+    const oldResponse = await fetch(`/api/test/commandes/${task.id}/cartes-details`)
+    console.log('❌ Ancien endpoint:', oldResponse.status, oldResponse.statusText)
+
+    // Test 2: Nouveau endpoint (qui marche)
+    console.log('📡 Test nouveau endpoint...')
+    const newResponse = await fetch(`/api/commandes/frontend/commandes/${task.id}/cartes`)
+    console.log('✅ Nouveau endpoint:', newResponse.status, newResponse.statusText)
+
+    if (newResponse.ok) {
+      const data = await newResponse.json()
+      console.log('📊 Données reçues:', data)
+
+      // Appliquer les vraies données
+      if (data && data.cartes) {
+        task.cards = data.cartes.map((carte: any) => ({
+          id: carte.carteId,
+          cert_id: carte.carteId,
+          nom: carte.nom,
+          code_barre: carte.codeBarre,
+          type: carte.type,
+          avecNom: carte.avecNom
+        }))
+
+        console.log('🎯 Cartes appliquées:', task.cards.length)
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Erreur debug:', error)
+  }
+}
+
+/**
+ * 🔧 VERSION SIMPLE POUR TEST IMMÉDIAT
+ * Remplacez temporairement chargerCartesCommande par cette version
+ */
+const chargerCartesCommandeSimple = async (task: Task) => {
+  if (!task.id) return
+
+  task.loadingCards = true
+
+  try {
+    console.log('🃏 SIMPLE: Chargement cartes pour:', task.id)
+
+    const response = await fetch(`/api/commandes/frontend/commandes/${task.id}/cartes`)
+
+    if (response.ok) {
+      const data = await response.json()
+      console.log('✅ SIMPLE: Données reçues:', data)
+
+      if (data.cartes && data.cartes.length > 0) {
+        // Utiliser les vraies cartes
+        task.cards = data.cartes.map((carte: any, index: number) => ({
+          id: carte.carteId,
+          cert_id: carte.carteId,
+          nom: carte.nom,
+          name: carte.nom,
+          label_name: carte.nom,
+          code_barre: carte.codeBarre,
+          type: carte.type,
+          cert_langue: 'FR',
+          langue: 'FR',
+          duration: 20,
+          amount: 10.0,
+          statut_correspondance: 'VRAIE_CARTE'
+        }))
+
+        console.log(`🎯 SIMPLE: ${task.cards.length} vraies cartes appliquées`)
+      } else {
+        // Aucune carte trouvée
+        task.cards = [{
+          id: 'no_cards',
+          nom: 'Aucune carte trouvée',
+          code_barre: 'N/A',
+          type: 'N/A',
+          cert_langue: 'FR',
+          duration: 0,
+          amount: 0
+        }]
+      }
+    } else {
+      throw new Error(`Erreur ${response.status}`)
+    }
+
+  } catch (error) {
+    console.error('❌ SIMPLE: Erreur:', error)
+
+    // Fallback simple
+    task.cards = [{
+      id: 'error',
+      nom: 'Erreur de chargement',
+      code_barre: 'ERROR',
+      type: 'Error',
+      cert_langue: 'FR',
+      duration: 0,
+      amount: 0
+    }]
+  } finally {
+    task.loadingCards = false
+  }
+}
+
+/**
+ * 🎯 CHARGEMENT EN MASSE DES CARTES - VERSION OPTIMISÉE
  */
 const chargerToutesLesCartes = async () => {
   if (!employee.value?.tasks || loadingAllCards.value) return
 
   loadingAllCards.value = true
+  let cartesTotales = 0
+  let commandesAvecCartes = 0
 
   try {
     console.log('🎯 Chargement en masse des cartes pour toutes les commandes')
 
-    const commandesAvecCartes = employee.value.tasks.filter(task =>
-      (task.cardCount || 0) > 0 && (!task.cards || task.cards.length === 0)
+    const commandesACharger = employee.value.tasks.filter(task =>
+      task.cardCount && task.cardCount > 0 && (!task.cards || task.cards.length === 0)
     )
 
-    console.log(`📦 ${commandesAvecCartes.length} commandes à traiter`)
+    console.log(`📦 ${commandesACharger.length} commandes à traiter`)
 
-    let compteur = 0
-    for (const task of commandesAvecCartes) {
-      compteur++
-      console.log(`🔄 Traitement ${compteur}/${commandesAvecCartes.length}: ${task.numeroCommande}`)
-
-      await chargerCartesCommande(task)
-
-      if (compteur < commandesAvecCartes.length) {
-        await new Promise(resolve => setTimeout(resolve, 200))
+    // ✅ CHARGEMENT PARALLÈLE pour de meilleures performances
+    const promisesChargement = commandesACharger.map(async (task) => {
+      try {
+        await chargerCartesCommande(task)
+        if (task.cards && task.cards.length > 0) {
+          cartesTotales += task.cards.length
+          commandesAvecCartes++
+        }
+      } catch (error) {
+        console.error(`❌ Erreur pour commande ${task.id}:`, error)
       }
-    }
+    })
 
-    console.log('✅ Chargement en masse terminé')
+    await Promise.all(promisesChargement)
+
+    console.log(`✅ Chargement terminé: ${cartesTotales} cartes pour ${commandesAvecCartes} commandes`)
+
+    // ✅ NOTIFICATION de succès
+    if (cartesTotales > 0) {
+      showNotification?.(`✅ ${cartesTotales} cartes chargées pour ${commandesAvecCartes} commandes`, 'success')
+    } else {
+      showNotification?.('⚠️ Aucune carte trouvée', 'warning')
+    }
 
   } catch (error) {
     console.error('❌ Erreur chargement en masse:', error)
+    showNotification?.('❌ Erreur lors du chargement des cartes', 'error')
   } finally {
     loadingAllCards.value = false
   }
 }
-
 const refreshEmployeeData = () => {
   emit('refresh')
   loadEmployeeData()

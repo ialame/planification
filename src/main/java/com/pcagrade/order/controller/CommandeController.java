@@ -247,57 +247,403 @@ public class CommandeController {
         }
     }
 
+    /// //////////////////
     /**
-     * 🃏 ENDPOINT CARTES - Détail des cartes d'une commande
+     * 🔍 ENDPOINT DÉCOUVERTE STRUCTURE - À ajouter temporairement dans CommandeController
+     */
+    @GetMapping("/frontend/debug-structure")
+    public ResponseEntity<Map<String, Object>> debugStructure() {
+        try {
+            System.out.println("🔍 Découverte de la structure des tables");
+
+            Map<String, Object> debug = new HashMap<>();
+
+            // 1. Structure de card_certification
+            try {
+                String sqlCC = "DESCRIBE card_certification";
+                Query queryCC = entityManager.createNativeQuery(sqlCC);
+                @SuppressWarnings("unchecked")
+                List<Object[]> structureCC = queryCC.getResultList();
+
+                List<String> colonnesCC = new ArrayList<>();
+                for (Object[] col : structureCC) {
+                    colonnesCC.add((String) col[0]);
+                }
+                debug.put("colonnes_card_certification", colonnesCC);
+                System.out.println("📋 card_certification: " + colonnesCC);
+
+            } catch (Exception e) {
+                debug.put("erreur_card_certification", e.getMessage());
+            }
+
+            // 2. Structure de card_translation
+            try {
+                String sqlCT = "DESCRIBE card_translation";
+                Query queryCT = entityManager.createNativeQuery(sqlCT);
+                @SuppressWarnings("unchecked")
+                List<Object[]> structureCT = queryCT.getResultList();
+
+                List<String> colonnesCT = new ArrayList<>();
+                for (Object[] col : structureCT) {
+                    colonnesCT.add((String) col[0]);
+                }
+                debug.put("colonnes_card_translation", colonnesCT);
+                System.out.println("📋 card_translation: " + colonnesCT);
+
+            } catch (Exception e) {
+                debug.put("erreur_card_translation", e.getMessage());
+            }
+
+            // 3. Structure de card
+            try {
+                String sqlCard = "DESCRIBE card";
+                Query queryCard = entityManager.createNativeQuery(sqlCard);
+                @SuppressWarnings("unchecked")
+                List<Object[]> structureCard = queryCard.getResultList();
+
+                List<String> colonnesCard = new ArrayList<>();
+                for (Object[] col : structureCard) {
+                    colonnesCard.add((String) col[0]);
+                }
+                debug.put("colonnes_card", colonnesCard);
+                System.out.println("📋 card: " + colonnesCard);
+
+            } catch (Exception e) {
+                debug.put("erreur_card", e.getMessage());
+            }
+
+            // 4. Échantillon de données pour comprendre les relations
+            try {
+                String sqlEchantillon = """
+                SELECT 
+                    HEX(cc.id) as cert_id,
+                    cc.code_barre,
+                    cc.type,
+                    cc.card_id
+                FROM card_certification cc
+                LIMIT 3
+                """;
+
+                Query queryEchantillon = entityManager.createNativeQuery(sqlEchantillon);
+                @SuppressWarnings("unchecked")
+                List<Object[]> echantillon = queryEchantillon.getResultList();
+
+                List<Map<String, Object>> echantillonData = new ArrayList<>();
+                for (Object[] row : echantillon) {
+                    Map<String, Object> cert = new HashMap<>();
+                    cert.put("cert_id", row[0]);
+                    cert.put("code_barre", row[1]);
+                    cert.put("type", row[2]);
+                    cert.put("card_id", row[3]);
+                    echantillonData.add(cert);
+                }
+                debug.put("echantillon_certifications", echantillonData);
+
+            } catch (Exception e) {
+                debug.put("erreur_echantillon", e.getMessage());
+            }
+
+            return ResponseEntity.ok(debug);
+
+        } catch (Exception e) {
+            System.err.println("❌ Erreur debug structure: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("erreur", e.getMessage()));
+        }
+    }
+
+    /**
+     * 🃏 ENDPOINT CARTES CORRIGÉ - Avec vrais noms depuis card_translation
+     * À remplacer dans CommandeController.java
      */
     @GetMapping("/frontend/commandes/{id}/cartes")
     public ResponseEntity<Map<String, Object>> getCartesCommande(@PathVariable String id) {
         try {
-            System.out.println("🃏 Frontend: Récupération cartes pour commande: " + id);
+            System.out.println("🃏 Frontend: Récupération cartes avec vrais noms pour commande: " + id);
 
+            // ✅ REQUÊTE CORRIGÉE avec jointure sur card_translation
             String sql = """
-        SELECT 
-            HEX(cc.id) as carteId,
-            cc.code_barre as codeBarre,
-            COALESCE(cc.type, 'Pokemon') as type,
-            COALESCE(ct.name, CONCAT('Carte-', cc.code_barre)) as nom,
-            COALESCE(ct.label_name, cc.code_barre) as labelNom,
-            COALESCE(cc.annotation, '') as annotation,
-            CASE WHEN ct.name IS NOT NULL AND ct.name != '' THEN 1 ELSE 0 END as avecNom
-        FROM card_certification_order cco
-        INNER JOIN card_certification cc ON cco.card_certification_id = cc.id
-        LEFT JOIN card_translation ct ON cc.translatable_id = ct.translatable_id 
-            AND ct.locale IN ('fr', 'us', 'en')
-        WHERE HEX(cco.order_id) = ?
-        ORDER BY cc.code_barre ASC
-        LIMIT 100
-        """;
+            SELECT 
+                HEX(cc.id) as carteId,
+                cc.code_barre as codeBarre,
+                COALESCE(cc.type, 'Pokemon') as type,
+                cc.card_id as cardId,
+                COALESCE(cc.annotation, '') as annotation,
+                
+                -- ✅ VRAIS NOMS depuis card_translation
+                COALESCE(ct.name, CONCAT('Carte Pokemon ', cc.code_barre)) as nom,
+                COALESCE(ct.label_name, ct.name, cc.code_barre) as labelNom,
+                
+                -- Indicateur si on a trouvé une traduction
+                CASE 
+                    WHEN ct.name IS NOT NULL AND ct.name != '' THEN 1 
+                    ELSE 0 
+                END as avecNom,
+                
+                -- Informations de debug
+                ct.locale as localeTraduction,
+                HEX(cc.card_id) as cardIdHex
+                
+            FROM card_certification_order cco
+            INNER JOIN card_certification cc ON cco.card_certification_id = cc.id
+            LEFT JOIN card_translation ct ON cc.card_id = ct.translatable_id 
+                AND ct.locale = 'us'  -- ✅ Cartes anglaises d'abord
+            WHERE HEX(cco.order_id) = ?
+            ORDER BY cc.code_barre ASC
+            LIMIT 100
+            """;
 
             Query query = entityManager.createNativeQuery(sql);
-            query.setParameter(1, id.replace("-", "")); // Supprime les tirets si présents
+            query.setParameter(1, id);
 
             @SuppressWarnings("unchecked")
             List<Object[]> resultats = query.getResultList();
+
+            System.out.println("🔍 Cartes trouvées: " + resultats.size());
 
             List<Map<String, Object>> cartes = new ArrayList<>();
             int nombreAvecNom = 0;
 
             for (Object[] row : resultats) {
                 Map<String, Object> carte = new HashMap<>();
-                carte.put("id", (String) row[0]);
-                carte.put("codeBarre", (String) row[1]);
-                carte.put("type", (String) row[2]);
-                carte.put("nom", (String) row[3]);
-                carte.put("labelNom", (String) row[4]);
-                carte.put("annotation", (String) row[5]);
+                carte.put("carteId", row[0]);
+                carte.put("codeBarre", row[1] != null ? row[1] : "N/A");
+                carte.put("type", row[2]);
+                carte.put("cardId", row[3]);
+                carte.put("annotation", row[4]);
+                carte.put("nom", row[5]); // ✅ Vrai nom ou fallback
+                carte.put("labelNom", row[6]); // ✅ Label ou nom
 
-                boolean avecNom = ((Number) row[6]).intValue() == 1;
+                boolean avecNom = row[7] != null && ((Number) row[7]).intValue() == 1;
                 carte.put("avecNom", avecNom);
-                carte.put("duration", 3); // 3 minutes par carte
+
+                // Informations de debug
+                carte.put("localeTraduction", row[8]);
+                carte.put("cardIdHex", row[9]);
 
                 if (avecNom) {
                     nombreAvecNom++;
+                    System.out.println("✅ Carte avec nom: " + row[5] + " (code: " + row[1] + ")");
+                } else {
+                    System.out.println("⚠️ Carte sans traduction: " + row[5] + " (code: " + row[1] + ")");
                 }
+
+                cartes.add(carte);
+            }
+
+            // ✅ Calcul des statistiques
+            int nombreCartes = cartes.size();
+            int pourcentageAvecNom = nombreCartes > 0 ?
+                    Math.round((nombreAvecNom * 100.0f) / nombreCartes) : 0;
+
+            // ✅ Réponse structurée
+            Map<String, Object> response = new HashMap<>();
+            response.put("cartes", cartes);
+            response.put("nombreCartes", nombreCartes);
+            response.put("nombreAvecNom", nombreAvecNom);
+            response.put("pourcentageAvecNom", pourcentageAvecNom);
+
+            String qualite = pourcentageAvecNom >= 95 ? "EXCELLENTE" :
+                    pourcentageAvecNom >= 85 ? "BONNE" :
+                            pourcentageAvecNom >= 70 ? "CORRECTE" : "FAIBLE";
+            response.put("qualiteCommande", qualite);
+
+            System.out.println("📊 Résumé: " + nombreCartes + " cartes retournées, " +
+                    nombreAvecNom + " avec nom (" + pourcentageAvecNom + "%)");
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Erreur récupération cartes: " + e.getMessage());
+            e.printStackTrace();
+
+            Map<String, Object> fallback = new HashMap<>();
+            fallback.put("cartes", new ArrayList<>());
+            fallback.put("nombreCartes", 0);
+            fallback.put("nombreAvecNom", 0);
+            fallback.put("pourcentageAvecNom", 0);
+            fallback.put("qualiteCommande", "ERREUR");
+            fallback.put("erreur", e.getMessage());
+
+            return ResponseEntity.status(500).body(fallback);
+        }
+    }
+
+    /**
+     * 🔍 ENDPOINT DEBUG - Pour tester la relation card <-> card_translation
+     * À ajouter temporairement dans CommandeController.java
+     */
+    @GetMapping("/frontend/debug-card-translation/{id}")
+    public ResponseEntity<Map<String, Object>> debugCardTranslation(@PathVariable String id) {
+        try {
+            System.out.println("🔍 Debug relation card <-> card_translation pour commande: " + id);
+
+            Map<String, Object> debug = new HashMap<>();
+
+            // 1. Vérifier la structure des données
+            String sqlDebug = """
+            SELECT 
+                HEX(cc.id) as cert_id,
+                cc.code_barre,
+                HEX(cc.card_id) as card_id,
+                
+                -- Compter les traductions disponibles
+                (SELECT COUNT(*) FROM card_translation ct1 
+                 WHERE ct1.translatable_id = cc.card_id) as nb_traductions,
+                
+                -- Traductions par langue
+                (SELECT ct2.name FROM card_translation ct2 
+                 WHERE ct2.translatable_id = cc.card_id AND ct2.locale = 'us' 
+                 LIMIT 1) as nom_us,
+                
+                (SELECT ct3.name FROM card_translation ct3 
+                 WHERE ct3.translatable_id = cc.card_id AND ct3.locale = 'fr' 
+                 LIMIT 1) as nom_fr,
+                
+                -- Toutes les langues disponibles
+                (SELECT GROUP_CONCAT(DISTINCT ct4.locale ORDER BY ct4.locale)
+                 FROM card_translation ct4 
+                 WHERE ct4.translatable_id = cc.card_id) as langues_disponibles
+                
+            FROM card_certification_order cco
+            INNER JOIN card_certification cc ON cco.card_certification_id = cc.id
+            WHERE HEX(cco.order_id) = ?
+            LIMIT 5
+            """;
+
+            Query queryDebug = entityManager.createNativeQuery(sqlDebug);
+            queryDebug.setParameter(1, id);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> resultatsDebug = queryDebug.getResultList();
+
+            List<Map<String, Object>> cartesDebug = new ArrayList<>();
+            for (Object[] row : resultatsDebug) {
+                Map<String, Object> carteDebug = new HashMap<>();
+                carteDebug.put("cert_id", row[0]);
+                carteDebug.put("code_barre", row[1]);
+                carteDebug.put("card_id", row[2]);
+                carteDebug.put("nb_traductions", row[3]);
+                carteDebug.put("nom_us", row[4]);
+                carteDebug.put("nom_fr", row[5]);
+                carteDebug.put("langues_disponibles", row[6]);
+                cartesDebug.add(carteDebug);
+            }
+
+            debug.put("cartes_debug", cartesDebug);
+
+            // 2. Statistiques globales
+            String sqlStats = """
+            SELECT 
+                COUNT(*) as total_cartes,
+                COUNT(CASE WHEN ct.name IS NOT NULL THEN 1 END) as avec_nom_us,
+                COUNT(DISTINCT ct.locale) as langues_distinctes
+            FROM card_certification_order cco
+            INNER JOIN card_certification cc ON cco.card_certification_id = cc.id
+            LEFT JOIN card_translation ct ON cc.card_id = ct.translatable_id AND ct.locale = 'us'
+            WHERE HEX(cco.order_id) = ?
+            """;
+
+            Query queryStats = entityManager.createNativeQuery(sqlStats);
+            queryStats.setParameter(1, id);
+
+            Object[] stats = (Object[]) queryStats.getSingleResult();
+            debug.put("statistiques", Map.of(
+                    "total_cartes", stats[0],
+                    "avec_nom_us", stats[1],
+                    "langues_distinctes", stats[2]
+            ));
+
+            return ResponseEntity.ok(debug);
+
+        } catch (Exception e) {
+            System.err.println("❌ Erreur debug: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("erreur", e.getMessage()));
+        }
+    }
+
+    /**
+     * 🃏 VERSION ALTERNATIVE - Avec fallback sur plusieurs langues
+     * Si vous voulez essayer français puis anglais
+     */
+    @GetMapping("/frontend/commandes/{id}/cartes-multilangue")
+    public ResponseEntity<Map<String, Object>> getCartesCommandeMultilangue(@PathVariable String id) {
+        try {
+            System.out.println("🃏 Frontend: Récupération cartes multilangue pour commande: " + id);
+
+            String sql = """
+            SELECT 
+                HEX(cc.id) as carteId,
+                cc.code_barre as codeBarre,
+                COALESCE(cc.type, 'Pokemon') as type,
+                cc.card_id as cardId,
+                COALESCE(cc.annotation, '') as annotation,
+                
+                -- ✅ STRATÉGIE MULTILANGUE: us > fr > en > première disponible
+                COALESCE(
+                    (SELECT ct_us.name FROM card_translation ct_us 
+                     WHERE ct_us.translatable_id = cc.card_id AND ct_us.locale = 'us' 
+                     AND ct_us.name IS NOT NULL AND ct_us.name != '' LIMIT 1),
+                    (SELECT ct_fr.name FROM card_translation ct_fr 
+                     WHERE ct_fr.translatable_id = cc.card_id AND ct_fr.locale = 'fr' 
+                     AND ct_fr.name IS NOT NULL AND ct_fr.name != '' LIMIT 1),
+                    (SELECT ct_en.name FROM card_translation ct_en 
+                     WHERE ct_en.translatable_id = cc.card_id AND ct_en.locale = 'en' 
+                     AND ct_en.name IS NOT NULL AND ct_en.name != '' LIMIT 1),
+                    (SELECT ct_any.name FROM card_translation ct_any 
+                     WHERE ct_any.translatable_id = cc.card_id 
+                     AND ct_any.name IS NOT NULL AND ct_any.name != '' LIMIT 1),
+                    CONCAT('Carte Pokemon ', cc.code_barre)
+                ) as nom,
+                
+                -- Langue de la traduction trouvée
+                COALESCE(
+                    (SELECT 'us' FROM card_translation ct_us 
+                     WHERE ct_us.translatable_id = cc.card_id AND ct_us.locale = 'us' 
+                     AND ct_us.name IS NOT NULL AND ct_us.name != '' LIMIT 1),
+                    (SELECT 'fr' FROM card_translation ct_fr 
+                     WHERE ct_fr.translatable_id = cc.card_id AND ct_fr.locale = 'fr' 
+                     AND ct_fr.name IS NOT NULL AND ct_fr.name != '' LIMIT 1),
+                    (SELECT 'en' FROM card_translation ct_en 
+                     WHERE ct_en.translatable_id = cc.card_id AND ct_en.locale = 'en' 
+                     AND ct_en.name IS NOT NULL AND ct_en.name != '' LIMIT 1),
+                    (SELECT ct_any.locale FROM card_translation ct_any 
+                     WHERE ct_any.translatable_id = cc.card_id 
+                     AND ct_any.name IS NOT NULL AND ct_any.name != '' LIMIT 1),
+                    'fallback'
+                ) as langueUtilisee
+                
+            FROM card_certification_order cco
+            INNER JOIN card_certification cc ON cco.card_certification_id = cc.id
+            WHERE HEX(cco.order_id) = ?
+            ORDER BY cc.code_barre ASC
+            LIMIT 100
+            """;
+
+            Query query = entityManager.createNativeQuery(sql);
+            query.setParameter(1, id);
+
+            @SuppressWarnings("unchecked")
+            List<Object[]> resultats = query.getResultList();
+
+            List<Map<String, Object>> cartes = new ArrayList<>();
+            Map<String, Integer> languesStats = new HashMap<>();
+
+            for (Object[] row : resultats) {
+                Map<String, Object> carte = new HashMap<>();
+                carte.put("carteId", row[0]);
+                carte.put("codeBarre", row[1]);
+                carte.put("type", row[2]);
+                carte.put("cardId", row[3]);
+                carte.put("annotation", row[4]);
+                carte.put("nom", row[5]);
+                carte.put("labelNom", row[5]);
+
+                String langueUtilisee = (String) row[6];
+                carte.put("langueUtilisee", langueUtilisee);
+                carte.put("avecNom", !"fallback".equals(langueUtilisee));
+
+                // Statistiques des langues
+                languesStats.merge(langueUtilisee, 1, Integer::sum);
 
                 cartes.add(carte);
             }
@@ -305,20 +651,88 @@ public class CommandeController {
             Map<String, Object> response = new HashMap<>();
             response.put("cartes", cartes);
             response.put("nombreCartes", cartes.size());
-            response.put("nombreAvecNom", nombreAvecNom);
-            response.put("pourcentageAvecNom", cartes.size() > 0 ?
-                    Math.round((nombreAvecNom * 100.0) / cartes.size()) : 0);
+            response.put("languesStats", languesStats);
+            response.put("qualiteCommande", "MULTILANGUE");
 
-            System.out.println("✅ " + cartes.size() + " cartes récupérées (" + nombreAvecNom + " avec nom)");
+            System.out.println("📊 Statistiques langues: " + languesStats);
+
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            System.err.println("❌ Erreur récupération cartes: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.status(500).body(new HashMap<>());
+            System.err.println("❌ Erreur récupération cartes multilangue: " + e.getMessage());
+            return ResponseEntity.status(500).body(Map.of("erreur", e.getMessage()));
         }
     }
+    /**
+     * 🔧 ENDPOINT VERIFIER CORRIGÉ - Format ID universel
+     */
+    @GetMapping("/frontend/commandes/{id}/verifier")
+    public ResponseEntity<Map<String, Object>> verifierCommande(@PathVariable String id) {
+        try {
+            System.out.println("🔍 Vérification commande: " + id);
 
+            // ✅ Essayer avec et sans tirets pour la compatibilité
+            String[] idsAEssayer = {
+                    id,                              // ID original
+                    id.replace("-", ""),             // Sans tirets
+                    id.toUpperCase(),                // Majuscules
+                    id.replace("-", "").toUpperCase() // Sans tirets + majuscules
+            };
+
+            for (String idTest : idsAEssayer) {
+                try {
+                    String sqlVerif = """
+                    SELECT 
+                        HEX(o.id) as commandeId,
+                        o.num_commande as numeroCommande,
+                        COUNT(cco.card_certification_id) as nombreCartes
+                    FROM `order` o
+                    LEFT JOIN card_certification_order cco ON o.id = cco.order_id
+                    WHERE HEX(o.id) = ?
+                    GROUP BY o.id, o.num_commande
+                    """;
+
+                    Query query = entityManager.createNativeQuery(sqlVerif);
+                    query.setParameter(1, idTest);
+
+                    @SuppressWarnings("unchecked")
+                    List<Object[]> resultats = query.getResultList();
+
+                    if (!resultats.isEmpty()) {
+                        Object[] row = resultats.get(0);
+                        Map<String, Object> response = new HashMap<>();
+                        response.put("existe", true);
+                        response.put("commandeId", row[0]);
+                        response.put("numeroCommande", row[1]);
+                        response.put("nombreCartes", row[2]);
+                        response.put("idTeste", idTest);
+                        response.put("message", "Commande trouvée avec " + row[2] + " cartes");
+
+                        System.out.println("✅ Commande trouvée avec ID: " + idTest);
+                        return ResponseEntity.ok(response);
+                    }
+                } catch (Exception e) {
+                    System.out.println("❌ Échec avec ID: " + idTest + " - " + e.getMessage());
+                }
+            }
+
+            // Aucun ID n'a fonctionné
+            Map<String, Object> response = new HashMap<>();
+            response.put("existe", false);
+            response.put("message", "Commande non trouvée avec aucun format d'ID");
+            response.put("idsEssayes", String.join(", ", idsAEssayer));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            System.err.println("❌ Erreur vérification: " + e.getMessage());
+            Map<String, Object> error = new HashMap<>();
+            error.put("existe", false);
+            error.put("erreur", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+    /// //////////////////
     // Vos méthodes existantes...
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getCommandes() {
@@ -661,106 +1075,6 @@ public class CommandeController {
 // 🔍 DEBUG : Pourquoi les commandes sont vides ?
 // ============================================================================
 
-// ✅ AJOUTEZ ces méthodes de debug dans CommandeController.java :
-
-    @GetMapping("/debug-structure")
-    public ResponseEntity<Map<String, Object>> debugStructure() {
-        Map<String, Object> debug = new HashMap<>();
-
-        try {
-            System.out.println("🔍 === DEBUG STRUCTURE TABLE ORDER ===");
-
-            // 1. Vérifier que la table existe
-            String sqlTables = "SHOW TABLES LIKE 'order'";
-            Query queryTables = entityManager.createNativeQuery(sqlTables);
-            @SuppressWarnings("unchecked")
-            List<String> tables = queryTables.getResultList();
-
-            debug.put("table_order_existe", !tables.isEmpty());
-            System.out.println("Table 'order' existe: " + !tables.isEmpty());
-
-            if (tables.isEmpty()) {
-                debug.put("erreur", "Table 'order' n'existe pas");
-                return ResponseEntity.ok(debug);
-            }
-
-            // 2. Décrire la structure de la table
-            String sqlDesc = "DESCRIBE `order`";
-            Query queryDesc = entityManager.createNativeQuery(sqlDesc);
-            @SuppressWarnings("unchecked")
-            List<Object[]> colonnes = queryDesc.getResultList();
-
-            Map<String, String> structureTable = new HashMap<>();
-            for (Object[] col : colonnes) {
-                String nomColonne = (String) col[0];
-                String typeColonne = (String) col[1];
-                structureTable.put(nomColonne, typeColonne);
-                System.out.println("  - " + nomColonne + " (" + typeColonne + ")");
-            }
-            debug.put("structure_table", structureTable);
-
-            // 3. Compter le nombre total de commandes
-            String sqlCount = "SELECT COUNT(*) FROM `order`";
-            Query queryCount = entityManager.createNativeQuery(sqlCount);
-            Object totalResult = queryCount.getSingleResult();
-            Long totalCommandes = ((Number) totalResult).longValue();
-
-            debug.put("total_commandes", totalCommandes);
-            System.out.println("Total commandes dans la table: " + totalCommandes);
-
-            // 4. Voir les dates disponibles
-            String sqlDates = "SELECT DATE(date) as date_commande, COUNT(*) as nb FROM `order` GROUP BY DATE(date) ORDER BY date_commande DESC LIMIT 10";
-            Query queryDates = entityManager.createNativeQuery(sqlDates);
-            @SuppressWarnings("unchecked")
-            List<Object[]> dates = queryDates.getResultList();
-
-            Map<String, Long> datesCommandes = new HashMap<>();
-            System.out.println("Dates avec des commandes:");
-            for (Object[] dateRow : dates) {
-                String date = String.valueOf(dateRow[0]);
-                Long nb = ((Number) dateRow[1]).longValue();
-                datesCommandes.put(date, nb);
-                System.out.println("  - " + date + ": " + nb + " commandes");
-            }
-            debug.put("dates_commandes", datesCommandes);
-
-            // 5. Vérifier spécifiquement juin 2025
-            String sqlJuin2025 = "SELECT COUNT(*) FROM `order` WHERE date >= '2025-06-01' AND date < '2025-07-01'";
-            Query queryJuin = entityManager.createNativeQuery(sqlJuin2025);
-            Object juinResult = queryJuin.getSingleResult();
-            Long commandesJuin = ((Number) juinResult).longValue();
-
-            debug.put("commandes_juin_2025", commandesJuin);
-            System.out.println("Commandes en juin 2025: " + commandesJuin);
-
-            // 6. Vérifier les premières commandes (peu importe la date)
-            String sqlTop5 = "SELECT HEX(id), num_commande, date, status FROM `order` ORDER BY date DESC LIMIT 5";
-            Query queryTop5 = entityManager.createNativeQuery(sqlTop5);
-            @SuppressWarnings("unchecked")
-            List<Object[]> topCommandes = queryTop5.getResultList();
-
-            List<Map<String, Object>> echantillon = new ArrayList<>();
-            System.out.println("Échantillon des dernières commandes:");
-            for (Object[] cmd : topCommandes) {
-                Map<String, Object> commande = new HashMap<>();
-                commande.put("id", cmd[0]);
-                commande.put("numeroCommande", cmd[1]);
-                commande.put("date", cmd[2]);
-                commande.put("status", cmd[3]);
-                echantillon.add(commande);
-                System.out.println("  - " + cmd[1] + " | " + cmd[2] + " | Status: " + cmd[3]);
-            }
-            debug.put("echantillon_commandes", echantillon);
-
-            return ResponseEntity.ok(debug);
-
-        } catch (Exception e) {
-            System.err.println("❌ Erreur debug structure: " + e.getMessage());
-            e.printStackTrace();
-            debug.put("erreur", e.getMessage());
-            return ResponseEntity.status(500).body(debug);
-        }
-    }
 
     @GetMapping("/debug-toutes")
     public ResponseEntity<List<Map<String, Object>>> debugToutesCommandes() {

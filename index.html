@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <title>Carte Pokémon - Portugais</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 30px;
+      background-color: #f0f0f0;
+    }
+    .card {
+      background-color: #fff;
+      border: 2px solid #333;
+      border-radius: 10px;
+      padding: 20px;
+      width: 300px;
+      margin: 20px auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+    .card img {
+      max-width: 100%;
+    }
+    input {
+      padding: 10px;
+      width: 200px;
+      margin-right: 10px;
+    }
+    button {
+      padding: 10px 15px;
+    }
+  </style>
+</head>
+<body>
+<h1>Carte Pokémon (Português)</h1>
+<input type="text" id="pokemonName" placeholder="Nome do Pokémon">
+<button onclick="generateCard()">Buscar</button>
+
+<div id="cardContainer"></div>
+
+<script>
+  // Traduction des types en portugais
+  const typeTrad = {
+    normal: "Normal",
+    fire: "Fogo",
+    water: "Água",
+    electric: "Elétrico",
+    grass: "Planta",
+    ice: "Gelo",
+    fighting: "Lutador",
+    poison: "Venenoso",
+    ground: "Terra",
+    flying: "Voador",
+    psychic: "Psíquico",
+    bug: "Inseto",
+    rock: "Pedra",
+    ghost: "Fantasma",
+    dark: "Sombrio",
+    dragon: "Dragão",
+    steel: "Aço",
+    fairy: "Fada"
+  };
+
+  async function generateCard() {
+    const name = document.getElementById("pokemonName").value.toLowerCase();
+    const response = await fetch(`https://pokeapi.co/api/v2/pokemon/ ${name}`);
+
+    if (!response.ok) {
+      alert("Pokémon não encontrado!");
+      return;
+    }
+
+    const data = await response.json();
+
+    const ptTypes = data.types.map(t => typeTrad[t.type.name] || t.type.name).join(', ');
+
+    const cardHTML = `
+        <div class="card">
+          <h2>${data.name.charAt(0).toUpperCase() + data.name.slice(1)}</h2>
+          <img src="${data.sprites.front_default}" alt="${data.name}">
+          <p><strong>Tipo:</strong> ${ptTypes}</p>
+          <p><strong>Peso:</strong> ${data.weight / 10} kg</p>
+          <br/>
+          <a href="${data.sprites.front_default}" download="${data.name}.png">
+            🔽 Baixar Imagem
+          </a>
+        </div>
+      `;
+    document.getElementById("cardContainer").innerHTML = cardHTML;
+  }
+</script>
+</body>
+</html>
